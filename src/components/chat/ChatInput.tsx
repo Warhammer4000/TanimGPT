@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '../../components/ui/button';
-import { Send, Upload } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Send, Upload, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
   onSend: (message: string, files?: File[]) => void;
@@ -11,13 +12,14 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      const newHeight = Math.min(textarea.scrollHeight, 200); // Max height of 200px
-      textarea.style.height = `${Math.max(40, newHeight)}px`; // Min height of 40px
+      const newHeight = Math.min(textarea.scrollHeight, 200);
+      textarea.style.height = `${Math.max(40, newHeight)}px`;
     }
   };
 
@@ -32,7 +34,10 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       setInput('');
       setFiles([]);
       if (textareaRef.current) {
-        textareaRef.current.style.height = '40px'; // Reset height
+        textareaRef.current.style.height = '40px';
+      }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
     }
   };
@@ -46,8 +51,25 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles(Array.from(e.target.files));
+      const newFiles = Array.from(e.target.files);
+      setFiles(prev => [...prev, ...newFiles]);
     }
+  };
+
+  const removeFile = (fileToRemove: File) => {
+    setFiles(files.filter(file => file !== fileToRemove));
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (e.dataTransfer.files) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
   };
 
   if (disabled) {
@@ -56,21 +78,30 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   return (
     <form onSubmit={handleSubmit} className="p-4 border-t">
-      <div className="max-w-3xl mx-auto">
+      <div 
+        className="max-w-3xl mx-auto"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
         <div className="flex gap-4">
           <input
+            ref={fileInputRef}
             type="file"
             id="file-upload"
             className="hidden"
             onChange={handleFileChange}
             multiple
+            accept="image/*,.pdf,.doc,.docx,.txt"
           />
           <label htmlFor="file-upload">
             <Button
               type="button"
               variant="outline"
               size="icon"
-              className="shrink-0"
+              className={cn(
+                "shrink-0",
+                files.length > 0 && "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
             >
               <Upload className="h-4 w-4" />
             </Button>
@@ -90,9 +121,21 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         </div>
         {files.length > 0 && (
           <div className="mt-2 flex gap-2 flex-wrap">
-            {files.map((file) => (
-              <div key={file.name} className="text-sm bg-muted px-2 py-1 rounded">
-                {file.name}
+            {files.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center gap-2 text-sm bg-muted px-2 py-1 rounded group"
+              >
+                <span className="truncate max-w-[200px]">{file.name}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => removeFile(file)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
               </div>
             ))}
           </div>

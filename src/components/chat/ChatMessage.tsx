@@ -3,8 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message } from '../../lib/store';
-import { Button } from '../../components/ui/button';
-import { Copy } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Copy, FileText } from 'lucide-react';
 import { AnimatedText } from './AnimatedText';
 import { cn } from '../../lib/utils';
 
@@ -24,6 +24,24 @@ export function ChatMessage({ message, typingAnimation, typingSpeed = 30 }: Chat
       messageRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [message.content, isTypingComplete]);
+
+  const renderAttachments = () => {
+    if (!message.files?.length) return null;
+
+    return (
+      <div className="mt-2 space-y-2">
+        {message.files.map((file, index) => (
+          <div
+            key={`${file.name}-${index}`}
+            className="flex items-center gap-2 p-2 bg-muted rounded"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="text-sm">{file.name}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const MessageContent = () => (
     <ReactMarkdown
@@ -88,7 +106,10 @@ export function ChatMessage({ message, typingAnimation, typingSpeed = 30 }: Chat
                 onComplete={() => setIsTypingComplete(true)}
               />
             ) : (
-              <MessageContent />
+              <>
+                <MessageContent />
+                {renderAttachments()}
+              </>
             )}
           </div>
         </div>

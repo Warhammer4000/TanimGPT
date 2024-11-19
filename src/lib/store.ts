@@ -7,6 +7,7 @@ export interface Message {
   content: string;
   timestamp: number;
   animated?: boolean;
+  files?: File[];
 }
 
 export interface Chat {

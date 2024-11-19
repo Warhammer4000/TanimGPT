@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from './lib/store';
 import { ChatList } from './components/chat/ChatList';
 import { ChatMessage } from './components/chat/ChatMessage';
 import { ChatInput } from './components/chat/ChatInput';
 import { SettingsDialog } from './components/settings/SettingsDialog';
+import { parseFile, ParsedFile } from './lib/fileParser';
 
 export default function App() {
   const { 
@@ -15,6 +16,7 @@ export default function App() {
   } = useStore();
 
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeMessages = chats.find(chat => chat.id === activeChat)?.messages || [];
 
@@ -51,26 +53,51 @@ export default function App() {
       return;
     }
 
-    const userMessage = {
-      id: Math.random().toString(),
-      role: 'user' as const,
-      content,
-      timestamp: Date.now(),
-    };
-
-    addMessage(activeChat!, userMessage);
-
+    setIsProcessing(true);
+    let parsedFiles: ParsedFile[] = [];
+    
     try {
-      // Create message history for context
+      if (files?.length) {
+        parsedFiles = await Promise.all(files.map(parseFile));
+        const errors = parsedFiles.filter(file => file.error);
+        if (errors.length > 0) {
+          console.warn('Some files had parsing errors:', errors);
+        }
+      }
+
+      // Create the user message with files
+      const userMessage = {
+        id: Math.random().toString(),
+        role: 'user' as const,
+        content,
+        timestamp: Date.now(),
+        files
+      };
+
+      addMessage(activeChat!, userMessage);
+
+      // Build chat history for context
       const chatHistory = activeMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
 
-      // Add current message to history
+      // Prepare the current message with file contents
+      let messageContent = content;
+      if (parsedFiles.length > 0) {
+        messageContent += '\n\nAttached Files:\n' + parsedFiles.map(file => {
+          const header = `[File: ${file.name} (${file.type})]`;
+          if (file.error) {
+            return `${header}\nError: ${file.error}`;
+          }
+          return `${header}\nContent:\n${file.content}`;
+        }).join('\n\n');
+      }
+
+      // Add the current message to history
       chatHistory.push({
         role: 'user',
-        content
+        content: messageContent
       });
 
       const response = await fetch(`${settings.lmStudioUrl}/v1/chat/completions`, {
@@ -81,6 +108,8 @@ export default function App() {
         body: JSON.stringify({
           messages: chatHistory,
           model: settings.activeModel,
+          temperature: 0.7,
+          max_tokens: 2000,
         }),
       });
 
@@ -100,6 +129,8 @@ export default function App() {
     } catch (error) {
       setError('Failed to communicate with LMStudio. Please check your connection.');
       console.error('Error:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -142,7 +173,7 @@ export default function App() {
 
         <ChatInput
           onSend={handleSendMessage}
-          disabled={!activeChat || !settings.lmStudioUrl || !!error}
+          disabled={!activeChat || !settings.lmStudioUrl || !!error || isProcessing}
         />
       </div>
     </div>
