@@ -4,7 +4,6 @@ import { ChatList } from './components/chat/ChatList';
 import { ChatMessage } from './components/chat/ChatMessage';
 import { ChatInput } from './components/chat/ChatInput';
 import { SettingsDialog } from './components/settings/SettingsDialog';
-import { validateLMStudioUrl } from './lib/utils';
 
 export default function App() {
   const { 
@@ -26,21 +25,21 @@ export default function App() {
   useEffect(() => {
     const validateUrl = async () => {
       if (settings.lmStudioUrl) {
-        const isValid = await validateLMStudioUrl(settings.lmStudioUrl);
-        if (isValid) {
-          setError(null);
+        try {
           const response = await fetch(`${settings.lmStudioUrl}/v1/models`);
+          if (!response.ok) throw new Error();
+          setError(null);
           const data = await response.json();
           if (data.data?.[0]?.id) {
             updateSettings({ activeModel: data.data[0].id });
           }
-        } else {
+        } catch {
           setError('Unable to connect to LMStudio. Please check the URL in settings and ensure LMStudio is running.');
         }
       }
     };
     validateUrl();
-  }, [settings.lmStudioUrl]);
+  }, [settings.lmStudioUrl, updateSettings]);
 
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (!settings.lmStudioUrl) {
@@ -62,13 +61,25 @@ export default function App() {
     addMessage(activeChat!, userMessage);
 
     try {
+      // Create message history for context
+      const chatHistory = activeMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Add current message to history
+      chatHistory.push({
+        role: 'user',
+        content
+      });
+
       const response = await fetch(`${settings.lmStudioUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [{ role: 'user', content }],
+          messages: chatHistory,
           model: settings.activeModel,
         }),
       });
