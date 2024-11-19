@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '../../components/ui/button';
 import { Send, Upload } from 'lucide-react';
 
@@ -10,6 +10,20 @@ interface ChatInputProps {
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 200); // Max height of 200px
+      textarea.style.height = `${Math.max(40, newHeight)}px`; // Min height of 40px
+    }
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,6 +31,16 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       onSend(input, files);
       setInput('');
       setFiles([]);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = '40px'; // Reset height
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as any);
     }
   };
 
@@ -25,6 +49,10 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
       setFiles(Array.from(e.target.files));
     }
   };
+
+  if (disabled) {
+    return null;
+  }
 
   return (
     <form onSubmit={handleSubmit} className="p-4 border-t">
@@ -47,15 +75,16 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
               <Upload className="h-4 w-4" />
             </Button>
           </label>
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 p-2 border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            disabled={disabled}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message... (Shift + Enter for new line)"
+            className="flex-1 p-2 border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none overflow-y-auto leading-normal"
+            style={{ height: '40px' }}
           />
-          <Button type="submit" disabled={disabled || (!input.trim() && !files.length)}>
+          <Button type="submit" disabled={!input.trim() && !files.length}>
             <Send className="h-4 w-4" />
           </Button>
         </div>

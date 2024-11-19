@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from './lib/store';
 import { ChatList } from './components/chat/ChatList';
 import { ChatMessage } from './components/chat/ChatMessage';
@@ -15,6 +15,7 @@ export default function App() {
     updateSettings
   } = useStore();
 
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeMessages = chats.find(chat => chat.id === activeChat)?.messages || [];
 
@@ -27,11 +28,14 @@ export default function App() {
       if (settings.lmStudioUrl) {
         const isValid = await validateLMStudioUrl(settings.lmStudioUrl);
         if (isValid) {
+          setError(null);
           const response = await fetch(`${settings.lmStudioUrl}/v1/models`);
           const data = await response.json();
           if (data.data?.[0]?.id) {
             updateSettings({ activeModel: data.data[0].id });
           }
+        } else {
+          setError('Unable to connect to LMStudio. Please check the URL in settings and ensure LMStudio is running.');
         }
       }
     };
@@ -40,7 +44,11 @@ export default function App() {
 
   const handleSendMessage = async (content: string, files?: File[]) => {
     if (!settings.lmStudioUrl) {
-      alert('Please configure LMStudio URL in settings first');
+      setError('Please configure LMStudio URL in settings first');
+      return;
+    }
+
+    if (error) {
       return;
     }
 
@@ -65,6 +73,10 @@ export default function App() {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error('Failed to get response from LMStudio');
+      }
+
       const data = await response.json();
       const assistantMessage = {
         id: Math.random().toString(),
@@ -75,6 +87,7 @@ export default function App() {
 
       addMessage(activeChat!, assistantMessage);
     } catch (error) {
+      setError('Failed to communicate with LMStudio. Please check your connection.');
       console.error('Error:', error);
     }
   };
@@ -92,6 +105,11 @@ export default function App() {
         </header>
 
         <div className="flex-1 overflow-auto">
+          {error && (
+            <div className="p-4 m-4 bg-destructive/10 text-destructive rounded-md">
+              {error}
+            </div>
+          )}
           {activeChat ? (
             <div className="flex flex-col">
               {activeMessages.map((message) => (
@@ -113,7 +131,7 @@ export default function App() {
 
         <ChatInput
           onSend={handleSendMessage}
-          disabled={!activeChat || !settings.lmStudioUrl}
+          disabled={!activeChat || !settings.lmStudioUrl || !!error}
         />
       </div>
     </div>

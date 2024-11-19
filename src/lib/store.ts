@@ -31,6 +31,7 @@ interface AppState {
   setActiveChat: (chatId: string | null) => void;
   addChat: (chat: Chat) => void;
   deleteChat: (chatId: string) => void;
+  updateChat: (chatId: string, updates: Partial<Chat>) => void;
   addMessage: (chatId: string, message: Message) => void;
   updateSettings: (settings: Partial<Settings>) => void;
 }
@@ -55,6 +56,11 @@ export const useStore = create<AppState>()(
       deleteChat: (chatId) => set((state) => ({
         chats: state.chats.filter((chat) => chat.id !== chatId),
         activeChat: state.activeChat === chatId ? null : state.activeChat,
+      })),
+      updateChat: (chatId, updates) => set((state) => ({
+        chats: state.chats.map((chat) =>
+          chat.id === chatId ? { ...chat, ...updates } : chat
+        ),
       })),
       addMessage: (chatId, message) => set((state) => ({
         chats: state.chats.map((chat) =>
